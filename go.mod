@@ -3,7 +3,7 @@ module github.com/sbezverk/gobmp
 go 1.25.5
 
 require (
-	github.com/IBM/sarama v1.60.0
+	github.com/IBM/sarama v1.60.1
 	github.com/go-test/deep v1.1.1
 	github.com/golang/glog v1.2.5
 	github.com/nats-io/nats.go v1.52.0
@@ -20,7 +20,7 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
