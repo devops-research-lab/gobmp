@@ -62,7 +62,7 @@ func (p *producer) producePeerMessage(op int, msg bmp.Message) {
 		// first PeerUp the fields are immutable — no data race with readers
 		// that wait on speakerReady.
 		p.speakerReadyOnce.Do(func() {
-			p.speakerIP = m.LocalIP
+			p.speakerIP = speakerAddress(m.LocalIP, msg.SpeakerIP)
 			md5Sum := md5.Sum([]byte(p.speakerIP))
 			p.speakerHash = hex.EncodeToString(md5Sum[:])
 			close(p.speakerReady)
@@ -144,4 +144,34 @@ func (p *producer) producePeerMessage(op int, msg bmp.Message) {
 		glog.Errorf("failed to process peer message with error: %+v", err)
 		return
 	}
+}
+
+// speakerAddress picks the address that identifies the BMP speaker for this
+// connection.  The Peer Up Local Address is preferred, so the identity of an
+// established session is unchanged, but it is not always an address: RFC 9069
+// Section 4.2 has a Loc-RIB Instance Peer zero-fill it, and a speaker whose
+// first Peer Up describes the Loc-RIB therefore latches on 0.0.0.0 (or :: for
+// an IPv6 peer).  Every such speaker then hashes to md5("0.0.0.0") and two of
+// them become indistinguishable to a collector that keys on router_hash.
+//
+// connIP is the remote address of the TCP connection the message arrived on,
+// which the server already resolves per client.  It identifies the speaker
+// whenever the Peer Up does not, and it cannot collide between two connections.
+func speakerAddress(localIP, connIP string) string {
+	if isSpecificAddress(localIP) {
+		return localIP
+	}
+	if isSpecificAddress(connIP) {
+		return connIP
+	}
+	// Neither identifies anything.  Keep the Peer Up value rather than invent
+	// one, leaving the message exactly as it was before this fallback existed.
+	return localIP
+}
+
+// isSpecificAddress reports whether s is an IP address that names one host,
+// as opposed to being absent or the unspecified address 0.0.0.0 / ::.
+func isSpecificAddress(s string) bool {
+	ip := net.ParseIP(s)
+	return ip != nil && !ip.IsUnspecified()
 }
