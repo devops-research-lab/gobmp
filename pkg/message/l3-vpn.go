@@ -28,15 +28,16 @@ func (p *producer) l3vpn(nlri bgp.MPNLRI, op int, ph *bmp.PerPeerHeader, update 
 	if errors.Is(err, l3vpn.ErrEmptyNLRI) {
 		// Empty NLRI signals End-of-RIB per RFC 4724 §2 and is encoded as a withdrawal.
 		prfx := L3VPNPrefix{
-			Action:     "del",
-			RouterHash: p.speakerHash,
-			RouterIP:   p.speakerIP,
-			PeerHash:   ph.GetPeerHash(),
-			PeerASN:    ph.PeerAS,
-			Timestamp:  ph.GetPeerTimestamp(),
-			PeerType:   uint8(ph.PeerType),
-			IsEOR:      true,
-			IsIPv4:     !nlri.IsIPv6NLRI(),
+			Action:      "del",
+			RouterHash:  p.speakerHash,
+			RouterIP:    p.speakerIP,
+			PeerHash:    ph.GetPeerHash(),
+			RemoteBGPID: ph.GetPeerBGPIDString(),
+			PeerASN:     ph.PeerAS,
+			Timestamp:   ph.GetPeerTimestamp(),
+			PeerType:    uint8(ph.PeerType),
+			IsEOR:       true,
+			IsIPv4:      !nlri.IsIPv6NLRI(),
 		}
 		prfx.IsNexthopIPv4 = prfx.IsIPv4
 		prfx.PeerIP = ph.GetPeerAddrString()
@@ -71,6 +72,7 @@ func (p *producer) l3vpn(nlri bgp.MPNLRI, op int, ph *bmp.PerPeerHeader, update 
 			RouterIP:       p.speakerIP,
 			PeerType:       uint8(ph.PeerType),
 			PeerHash:       ph.GetPeerHash(),
+			RemoteBGPID:    ph.GetPeerBGPIDString(),
 			PeerASN:        ph.PeerAS,
 			Timestamp:      ph.GetPeerTimestamp(),
 			Nexthop:        nlri.GetNextHop(),

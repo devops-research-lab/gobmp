@@ -39,16 +39,17 @@ func (p *producer) unicast(nlri bgp.MPNLRI, op int, ph *bmp.PerPeerHeader, updat
 	// Check if Update carries any routes, if update comes with 0 routes, it is EoR message
 	if len(u.NLRI) == 0 {
 		prfx := &UnicastPrefix{
-			Action:     operation,
-			RouterHash: p.speakerHash,
-			RouterIP:   p.speakerIP,
-			PeerHash:   ph.GetPeerHash(),
-			PeerIP:     ph.GetPeerAddrString(),
-			PeerASN:    ph.PeerAS,
-			Timestamp:  ph.GetPeerTimestamp(),
-			PeerType:   uint8(ph.PeerType),
-			IsEOR:      true,
-			IsIPv4:     !nlri.IsIPv6NLRI(),
+			Action:      operation,
+			RouterHash:  p.speakerHash,
+			RouterIP:    p.speakerIP,
+			PeerHash:    ph.GetPeerHash(),
+			RemoteBGPID: ph.GetPeerBGPIDString(),
+			PeerIP:      ph.GetPeerAddrString(),
+			PeerASN:     ph.PeerAS,
+			Timestamp:   ph.GetPeerTimestamp(),
+			PeerType:    uint8(ph.PeerType),
+			IsEOR:       true,
+			IsIPv4:      !nlri.IsIPv6NLRI(),
 		}
 		prfx.IsNexthopIPv4 = prfx.IsIPv4
 		if f, err := ph.IsAdjRIBInPost(); err == nil {
@@ -78,6 +79,7 @@ func (p *producer) unicast(nlri bgp.MPNLRI, op int, ph *bmp.PerPeerHeader, updat
 			RouterIP:       p.speakerIP,
 			PeerType:       uint8(ph.PeerType),
 			PeerHash:       ph.GetPeerHash(),
+			RemoteBGPID:    ph.GetPeerBGPIDString(),
 			PeerASN:        ph.PeerAS,
 			Timestamp:      ph.GetPeerTimestamp(),
 			PrefixLen:      int32(e.Length),
