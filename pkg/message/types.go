@@ -72,6 +72,7 @@ type UnicastPrefix struct {
 	RouterIP         string              `json:"router_ip,omitempty"`
 	BaseAttributes   *bgp.BaseAttributes `json:"base_attrs,omitempty"`
 	PeerHash         string              `json:"peer_hash,omitempty"`
+	RemoteBGPID      string              `json:"remote_bgp_id,omitempty"`
 	PeerIP           string              `json:"peer_ip,omitempty"`
 	PeerType         uint8               `json:"peer_type"`
 	PeerASN          uint32              `json:"peer_asn,omitempty"`
@@ -457,6 +458,7 @@ type L3VPNPrefix struct {
 	RouterIP         string              `json:"router_ip,omitempty"`
 	BaseAttributes   *bgp.BaseAttributes `json:"base_attrs,omitempty"`
 	PeerHash         string              `json:"peer_hash,omitempty"`
+	RemoteBGPID      string              `json:"remote_bgp_id,omitempty"`
 	PeerIP           string              `json:"peer_ip,omitempty"`
 	PeerType         uint8               `json:"peer_type"`
 	PeerASN          uint32              `json:"peer_asn,omitempty"`
