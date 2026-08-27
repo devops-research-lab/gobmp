@@ -180,10 +180,10 @@ func (srv *bmpServer) startWorker(client net.Conn, hasSem bool) {
 			srv.mu.Lock()
 			delete(srv.clients, client)
 			srv.mu.Unlock()
-			srv.wg.Done()
 			if hasSem {
 				<-srv.connSem
 			}
+			srv.wg.Done()
 		}()
 		srv.bmpWorker(client)
 	}()
