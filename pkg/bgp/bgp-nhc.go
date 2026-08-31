@@ -3,19 +3,29 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 )
 
+var errNHCNoUsableCharacteristics = errors.New("NHC contains no usable characteristic TLVs")
+
 const (
-	NHCAttributeType         uint8  = 39
-	NHCCharacteristicELCv3   uint16 = 1
-	NHCCharacteristicNNHN    uint16 = 2
-	NHCCharacteristicBGPID   uint16 = 3
-	NHCCharacteristicIFIT    uint16 = 4
+	// NHCAttributeType identifies the Next Hop Dependent Characteristics path attribute.
+	NHCAttributeType uint8 = 39
+	// NHCCharacteristicELCv3 identifies the ELCv3 characteristic.
+	NHCCharacteristicELCv3 uint16 = 1
+	// NHCCharacteristicNNHN identifies the NNHN characteristic.
+	NHCCharacteristicNNHN uint16 = 2
+	// NHCCharacteristicBGPID identifies the BGP Identifier characteristic.
+	NHCCharacteristicBGPID uint16 = 3
+	// NHCCharacteristicIFIT identifies the IFIT characteristic.
+	NHCCharacteristicIFIT uint16 = 4
+	// NHCCharacteristicAMetric identifies the AMetric characteristic.
 	NHCCharacteristicAMetric uint16 = 5
 )
 
+// NHC represents a decoded Next Hop Dependent Characteristics path attribute.
 type NHC struct {
 	AFI                      uint16              `json:"afi"`
 	SAFI                     uint8               `json:"safi"`
@@ -25,17 +35,20 @@ type NHC struct {
 	DiscardedCharacteristics uint16              `json:"discarded_characteristics,omitempty"`
 }
 
+// NHCCharacteristic represents one characteristic TLV within an NHC attribute.
 type NHCCharacteristic struct {
 	Code   uint16 `json:"code"`
 	Length uint16 `json:"length"`
 	Value  []byte `json:"value,omitempty"`
 }
 
+// NHCBGPID contains the sender identity carried by a BGPID characteristic.
 type NHCBGPID struct {
 	Identifier string `json:"identifier"`
 	AS         uint32 `json:"as"`
 }
 
+// UnmarshalNHC decodes an NHC path attribute value.
 func UnmarshalNHC(b []byte) (*NHC, error) {
 	if len(b) < 4 {
 		return nil, fmt.Errorf("NHC too short: need 4 bytes for header, have %d", len(b))
@@ -87,9 +100,13 @@ func UnmarshalNHC(b []byte) (*NHC, error) {
 			Value:  append([]byte(nil), value...),
 		})
 	}
+	if len(nhc.Characteristics) == 0 {
+		return nil, errNHCNoUsableCharacteristics
+	}
 	return nhc, nil
 }
 
+// SemanticallyMatchesNextHop reports whether the NHC and route next hops match.
 func (n *NHC) SemanticallyMatchesNextHop(afi uint16, safi uint8, nextHop []byte, peerBGPID net.IP, peerAS uint32) bool {
 	matches, requiresBGPID := n.nextHopAddressMatches(afi, safi, nextHop)
 	if !matches {

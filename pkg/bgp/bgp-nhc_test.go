@@ -63,13 +63,17 @@ func TestUnmarshalNHCRejectsMalformedAttribute(t *testing.T) {
 	}
 }
 
-func TestUnmarshalNHCEmptyCharacteristics(t *testing.T) {
-	nhc, err := UnmarshalNHC(nhcValue(1, 1, []byte{192, 0, 2, 1}))
-	if err != nil {
-		t.Fatalf("UnmarshalNHC: %v", err)
+func TestUnmarshalNHCRejectsEmptyCharacteristics(t *testing.T) {
+	value := nhcValue(1, 1, []byte{192, 0, 2, 1})
+	if _, err := UnmarshalNHC(value); err == nil {
+		t.Fatal("UnmarshalNHC returned nil error")
 	}
-	if len(nhc.Characteristics) != 0 {
-		t.Fatalf("Characteristics = %+v, want empty", nhc.Characteristics)
+	baseAttrs, err := UnmarshalBGPBaseAttributes(buildAttr(0xc0, NHCAttributeType, value))
+	if err != nil {
+		t.Fatalf("UnmarshalBGPBaseAttributes: %v", err)
+	}
+	if baseAttrs.NHC != nil || baseAttrs.NHCMalformed || !baseAttrs.NHCEmpty || baseAttrs.NHCDiscarded || !bytes.Equal(baseAttrs.NHCAttr, value) {
+		t.Fatalf("empty NHC was not discarded and retained for forensics: %+v", baseAttrs)
 	}
 }
 
@@ -229,14 +233,14 @@ func TestNHCBaseAttributesIntegration(t *testing.T) {
 	}
 }
 
-func TestGetNLRITypePrefersReachability(t *testing.T) {
+func TestGetNLRITypePreservesAttributeOrder(t *testing.T) {
 	update := &Update{PathAttributes: []PathAttribute{
 		{AttributeType: MP_UNREACH_NLRI},
 		{AttributeType: MP_REACH_NLRI},
 	}}
 	attributeType, index := update.GetNLRIType()
-	if attributeType != MP_REACH_NLRI || index != 1 {
-		t.Fatalf("GetNLRIType() = %d, %d, want %d, 1", attributeType, index, MP_REACH_NLRI)
+	if attributeType != MP_UNREACH_NLRI || index != 0 {
+		t.Fatalf("GetNLRIType() = %d, %d, want %d, 0", attributeType, index, MP_UNREACH_NLRI)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -71,11 +72,18 @@ type BaseAttributes struct {
 	LgCommunityList []string      `json:"large_community_list,omitempty"`
 	BGPPrefixSID    *BGPPrefixSID `json:"bgp_prefix_sid,omitempty"`
 	OTC             uint32        `json:"otc,omitempty"` // RFC 9234 Only to Customer (OTC) Attribute (Type 35)
-	NHCAttr         []byte        `json:"nhc_attr,omitempty"`
-	NHC             *NHC          `json:"nhc,omitempty"`
-	NHCMalformed    bool          `json:"nhc_malformed,omitempty"`
-	NHCDiscarded    bool          `json:"nhc_discarded,omitempty"`
-	NHCUnverified   bool          `json:"nhc_unverified,omitempty"`
+	// NHCAttr retains the raw NHC attribute value for forensic use.
+	NHCAttr []byte `json:"nhc_attr,omitempty"`
+	// NHC contains the decoded NHC when its characteristics are usable.
+	NHC *NHC `json:"nhc,omitempty"`
+	// NHCMalformed reports a structurally invalid NHC attribute.
+	NHCMalformed bool `json:"nhc_malformed,omitempty"`
+	// NHCEmpty reports an NHC rejected because no usable characteristics remain.
+	NHCEmpty bool `json:"nhc_empty,omitempty"`
+	// NHCDiscarded reports an NHC rejected because its next hop did not match.
+	NHCDiscarded bool `json:"nhc_discarded,omitempty"`
+	// NHCUnverified reports an NHC retained without authoritative sender identity.
+	NHCUnverified bool `json:"nhc_unverified,omitempty"`
 	// SecPath
 	AttrSet *AttrSet `json:"attr_set,omitempty"` // RFC 6368 ATTR_SET Attribute (Type 128)
 	// UnknownAttributes preserves any path attribute whose Type code is not
@@ -220,7 +228,7 @@ func (ba *BaseAttributes) Equal(oba *BaseAttributes) (bool, []string) {
 		equal = false
 		diffs = append(diffs, "otc mismatch: "+strconv.FormatUint(uint64(ba.OTC), 10)+" and "+strconv.FormatUint(uint64(oba.OTC), 10))
 	}
-	if !bytes.Equal(ba.NHCAttr, oba.NHCAttr) || !reflect.DeepEqual(ba.NHC, oba.NHC) || ba.NHCMalformed != oba.NHCMalformed || ba.NHCDiscarded != oba.NHCDiscarded || ba.NHCUnverified != oba.NHCUnverified {
+	if !bytes.Equal(ba.NHCAttr, oba.NHCAttr) || !reflect.DeepEqual(ba.NHC, oba.NHC) || ba.NHCMalformed != oba.NHCMalformed || ba.NHCEmpty != oba.NHCEmpty || ba.NHCDiscarded != oba.NHCDiscarded || ba.NHCUnverified != oba.NHCUnverified {
 		equal = false
 		diffs = append(diffs, "nhc mismatch")
 	}
@@ -427,7 +435,10 @@ func unmarshalBaseAttrsFromSlice(attrs []PathAttribute, as4hint *bool) (*BaseAtt
 		case 39:
 			baseAttr.NHCAttr = append([]byte(nil), b...)
 			nhc, err := UnmarshalNHC(b)
-			if err != nil {
+			if errors.Is(err, errNHCNoUsableCharacteristics) {
+				baseAttr.NHCEmpty = true
+				glog.Warningf("NHC attribute (path attribute type 39) has no usable characteristics; decoded content discarded: %v", err)
+			} else if err != nil {
 				baseAttr.NHCMalformed = true
 				glog.Errorf("malformed NHC attribute (path attribute type 39); attribute discarded per draft-ietf-idr-nhc-07: %v", err)
 			} else {

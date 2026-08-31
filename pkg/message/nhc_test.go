@@ -1,6 +1,7 @@
 package message
 
 import (
+	"encoding/json"
 	"net"
 	"testing"
 
@@ -56,4 +57,69 @@ func TestValidateNHC(t *testing.T) {
 			t.Fatal("unverifiable outbound link-local NHC was not retained and marked")
 		}
 	})
+}
+
+func TestCopyUpdateCopiesNHCState(t *testing.T) {
+	original := &bgp.Update{BaseAttributes: &bgp.BaseAttributes{
+		NHCAttr: []byte{1},
+		NHC: &bgp.NHC{
+			NextHop: []byte{192, 0, 2, 1},
+			Characteristics: []bgp.NHCCharacteristic{{
+				Code:  4,
+				Value: []byte{1},
+			}},
+			BGPID: &bgp.NHCBGPID{Identifier: "192.0.2.1", AS: 65000},
+		},
+	}}
+	copied := copyUpdate(original)
+	copied.BaseAttributes.NHCAttr[0] = 2
+	copied.BaseAttributes.NHC.NextHop[0] = 198
+	copied.BaseAttributes.NHC.Characteristics[0].Value[0] = 2
+	copied.BaseAttributes.NHC.BGPID.AS = 65001
+	if original.BaseAttributes.NHCAttr[0] != 1 || original.BaseAttributes.NHC.NextHop[0] != 192 || original.BaseAttributes.NHC.Characteristics[0].Value[0] != 1 || original.BaseAttributes.NHC.BGPID.AS != 65000 {
+		t.Fatal("copyUpdate shared mutable NHC state with the original update")
+	}
+}
+
+func TestRouteMonitorPublishesMPReachAndUnreach(t *testing.T) {
+	publisher := &recordingPublisher{}
+	p := NewProducer(publisher, false).(*producer)
+	p.speakerIP = "192.0.2.10"
+	p.speakerHash = "speaker"
+	nhcValue := []byte{0, 1, 1, 4, 10, 0, 0, 1, 0, 4, 0, 0}
+	nhc, err := bgp.UnmarshalNHC(nhcValue)
+	if err != nil {
+		t.Fatalf("UnmarshalNHC: %v", err)
+	}
+	update := &bgp.Update{
+		PathAttributes: []bgp.PathAttribute{
+			{AttributeType: bgp.MP_UNREACH_NLRI, Attribute: []byte{0, 1, 1, 24, 198, 51, 100}},
+			{AttributeType: bgp.MP_REACH_NLRI, Attribute: []byte{0, 1, 1, 4, 10, 0, 0, 1, 0, 24, 192, 0, 2}},
+		},
+		BaseAttributes: &bgp.BaseAttributes{NHCAttr: nhcValue, NHC: nhc},
+	}
+	p.produceRouteMonitorMessage(bmp.Message{
+		PeerHeader: makePeerHeader(t, bmp.PeerType0, 0),
+		Payload:    &bmp.RouteMonitor{Update: update},
+	})
+
+	if len(publisher.msgs) != 2 {
+		t.Fatalf("published %d messages, want 2", len(publisher.msgs))
+	}
+	messages := make(map[string]UnicastPrefix, 2)
+	for _, published := range publisher.msgs {
+		var message UnicastPrefix
+		if err := json.Unmarshal(published.payload, &message); err != nil {
+			t.Fatalf("json.Unmarshal: %v", err)
+		}
+		messages[message.Action] = message
+	}
+	added, ok := messages["add"]
+	if !ok || added.Prefix != "192.0.2.0" || added.BaseAttributes == nil || added.BaseAttributes.NHC == nil {
+		t.Fatalf("reachable NLRI not published with NHC: %+v", added)
+	}
+	withdrawn, ok := messages["del"]
+	if !ok || withdrawn.Prefix != "198.51.100.0" || withdrawn.BaseAttributes == nil || withdrawn.BaseAttributes.NHC != nil || len(withdrawn.BaseAttributes.NHCAttr) != 0 || withdrawn.BaseAttributes.NHCMalformed || withdrawn.BaseAttributes.NHCEmpty || withdrawn.BaseAttributes.NHCDiscarded || withdrawn.BaseAttributes.NHCUnverified {
+		t.Fatalf("unreachable NLRI not published without NHC: %+v", withdrawn)
+	}
 }
