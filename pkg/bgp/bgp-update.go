@@ -103,15 +103,20 @@ func (up *Update) GetNLRIType() (uint8, int) {
 		// Fall back to default NLRI
 		return BGP4_NLRI, 0
 	}
+	unreachable := -1
 	for i, p := range up.PathAttributes {
 		switch p.AttributeType {
 		case MP_REACH_NLRI:
 			return MP_REACH_NLRI, i
 		case MP_UNREACH_NLRI:
-			return MP_UNREACH_NLRI, i
+			if unreachable == -1 {
+				unreachable = i
+			}
 		}
 	}
-
+	if unreachable != -1 {
+		return MP_UNREACH_NLRI, unreachable
+	}
 	return BGP4_NLRI, 0
 }
 

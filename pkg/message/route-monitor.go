@@ -3,6 +3,7 @@ package message
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 
 	"github.com/golang/glog"
 	"github.com/sbezverk/gobmp/pkg/bgp"
@@ -51,6 +52,9 @@ func (p *producer) produceRouteMonitorMessage(msg bmp.Message) {
 			glog.Errorf("failed to process MP_REACH_NLRI with error: %+v", err)
 			return
 		}
+		if reach, ok := nlri.(*bgp.MPReachNLRI); ok {
+			validateNHC(routeMonitorMsg.Update, reach.AddressFamilyID, reach.SubAddressFamilyID, reach.NextHopAddress, msg.PeerHeader)
+		}
 		p.processMPUpdate(nlri, AddPrefix, msg.PeerHeader, routeMonitorMsg.Update)
 	case 15:
 		// MP_UNREACH_NLRI - Use per-table AddPath capability
@@ -62,8 +66,16 @@ func (p *producer) produceRouteMonitorMessage(msg bmp.Message) {
 			glog.Errorf("failed to process MP_UNREACH_NLRI with error: %+v", err)
 			return
 		}
+		if unreachable, ok := nlri.(*bgp.MPUnReachNLRI); ok {
+			validateNHC(routeMonitorMsg.Update, unreachable.AddressFamilyID, unreachable.SubAddressFamilyID, nil, msg.PeerHeader)
+		}
 		p.processMPUpdate(nlri, DelPrefix, msg.PeerHeader, routeMonitorMsg.Update)
 	default:
+		var nextHop []byte
+		if len(routeMonitorMsg.Update.NLRI) != 0 && routeMonitorMsg.Update.BaseAttributes != nil {
+			nextHop = net.ParseIP(routeMonitorMsg.Update.BaseAttributes.Nexthop).To4()
+		}
+		validateNHC(routeMonitorMsg.Update, 1, 1, nextHop, msg.PeerHeader)
 		t := bmp.UnicastPrefixMsg
 		if p.splitAF {
 			t = bmp.UnicastPrefixV4Msg
@@ -92,6 +104,33 @@ func (p *producer) produceRouteMonitorMessage(msg bmp.Message) {
 			}
 		}
 	}
+}
+
+func validateNHC(update *bgp.Update, afi uint16, safi uint8, nextHop []byte, ph *bmp.PerPeerHeader) {
+	if update == nil || update.BaseAttributes == nil || update.BaseAttributes.NHC == nil {
+		return
+	}
+	var peerBGPID net.IP
+	var peerAS uint32
+	authoritativePeer := false
+	if ph != nil {
+		if inbound, err := ph.IsAdjRIBIn(); err == nil && inbound {
+			peerBGPID = net.IP(ph.PeerBGPID)
+			peerAS = ph.PeerAS
+			authoritativePeer = true
+		}
+	}
+	nhc := update.BaseAttributes.NHC
+	if nhc.SemanticallyMatchesNextHop(afi, safi, nextHop, peerBGPID, peerAS) {
+		return
+	}
+	if !authoritativePeer && nhc.BGPID != nil && nhc.SemanticallyMatchesNextHop(afi, safi, nextHop, net.ParseIP(nhc.BGPID.Identifier), nhc.BGPID.AS) {
+		update.BaseAttributes.NHCUnverified = true
+		return
+	}
+	update.BaseAttributes.NHC = nil
+	update.BaseAttributes.NHCDiscarded = true
+	glog.Warningf("discarded NHC attribute whose embedded next hop did not semantically match AFI %d SAFI %d route next hop", afi, safi)
 }
 
 func (p *producer) marshalAndPublish(msg interface{}, msgType int, hash []byte) error {
