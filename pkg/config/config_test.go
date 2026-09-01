@@ -88,6 +88,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Publisher != nil {
 		t.Error("Publisher should be nil after LoadConfig")
 	}
+	if cfg.MaxPassiveConnections != 0 {
+		t.Errorf("MaxPassiveConnections = %d, want 0 (default unlimited)", cfg.MaxPassiveConnections)
+	}
 }
 
 func TestLoadConfig_SpeakersListEmpty(t *testing.T) {
@@ -346,5 +349,16 @@ kafka_config:
 	}
 	if cfg.KafkaConfig.KafkaCA != "" {
 		t.Errorf("KafkaCA = %q, want empty", cfg.KafkaConfig.KafkaCA)
+	}
+}
+
+func TestLoadConfig_MaxPassiveConnections(t *testing.T) {
+	path := writeTemp(t, "max_passive_connections: 10\n")
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig() unexpected error: %v", err)
+	}
+	if cfg.MaxPassiveConnections != 10 {
+		t.Errorf("MaxPassiveConnections = %d, want 10", cfg.MaxPassiveConnections)
 	}
 }

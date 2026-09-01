@@ -241,6 +241,7 @@ nats_config:
 ```yaml
 # Listening
 bmp_listen_port: 5000        # TCP port for BMP sessions (default: 5000)
+max_passive_connections: 0   # max concurrent inbound BMP sessions; 0 = unlimited (passive mode only, ignored when active_mode: true)
 
 # Performance monitoring (disabled when omitted or 0)
 performance_port: 56767      # pprof port; any value > 0 enables collection
