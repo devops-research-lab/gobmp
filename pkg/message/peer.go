@@ -149,7 +149,7 @@ func (p *producer) producePeerMessage(op int, msg bmp.Message) {
 // speakerAddress picks the address that identifies the BMP speaker for this
 // connection.  The Peer Up Local Address is preferred, so the identity of an
 // established session is unchanged, but it is not always an address: RFC 9069
-// Section 4.2 has a Loc-RIB Instance Peer zero-fill it, and a speaker whose
+// Section 5.2 has a Loc-RIB Instance Peer zero-fill it, and a speaker whose
 // first Peer Up describes the Loc-RIB therefore latches on 0.0.0.0 (or :: for
 // an IPv6 peer).  Every such speaker then hashes to md5("0.0.0.0") and two of
 // them become indistinguishable to a collector that keys on router_hash.
