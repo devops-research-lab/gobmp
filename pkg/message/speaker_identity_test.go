@@ -105,7 +105,7 @@ func TestSpeakerAddress(t *testing.T) {
 }
 
 // TestSpeakerIdentity_LocRIBPeerUpUsesConnectionAddress verifies that a PeerUp
-// describing a Loc-RIB Instance Peer, which RFC 9069 Section 4.2 zero-fills,
+// describing a Loc-RIB Instance Peer, which RFC 9069 Section 5.2 zero-fills,
 // does not latch the speaker onto the unspecified address.
 func TestSpeakerIdentity_LocRIBPeerUpUsesConnectionAddress(t *testing.T) {
 	p := NewProducer(&recordingPublisher{}, false).(*producer)
